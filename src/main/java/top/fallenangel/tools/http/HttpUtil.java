@@ -32,8 +32,9 @@ public class HttpUtil {
         private final List<Pair<String, Object>> params = new ArrayList<>();
         private final Map<String, String> headers = new HashMap<>();
         private Method method = Method.GET;
-        private ContentType contentType;
+        private ContentType contentType = ContentType.APPLICATION_JSON;
         private String url;
+        private Object singleParam;
 
         public HttpUtilBuilder url(String url) {
             this.url = url;
@@ -65,6 +66,7 @@ public class HttpUtil {
             return this;
         }
 
+        @SuppressWarnings("UnusedReturnValue")
         public HttpUtilBuilder addParam(String name, Object value) {
             if (value == null || value.toString().equals("null")) {
                 log.info("参数<{}>的值<{}>为null或者\"null\"，已将其忽略！", name, value);
@@ -77,6 +79,11 @@ public class HttpUtil {
 
         public HttpUtilBuilder addParam(Map<String, Object> param) {
             param.forEach(this::addParam);
+            return this;
+        }
+
+        public HttpUtilBuilder singleParam(Object param) {
+            this.singleParam = param;
             return this;
         }
 
@@ -128,56 +135,70 @@ public class HttpUtil {
                 urlBuilder.deleteCharAt(urlBuilder.length() - 1);
                 // 重新设置URL
                 instance.setURI(URI.create(urlBuilder.toString()));
-            } else { // 根据请求ContentType决定请求体设置方式
+            } else {
+                // 根据请求ContentType决定请求体设置方式
+                // 注：也可能是JSON格式的单个对象，也就是直接设置一个对象，转成JSON
+                // 注：也可能直接就是一个JSON字符串
                 HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest) instance;
-                if (contentTypeEquals(contentType, ContentType.APPLICATION_JSON)) { // 如果是JSON，把参数装进Map转为json字符串，以StringEntity的形式发送
-                    String param = JSON.toJSONString(collectParam());
-                    request.setEntity(new StringEntity(param, StandardCharsets.UTF_8));
-                    log.info("param: {}", param);
-                } else if (contentTypeEquals(contentType, ContentType.APPLICATION_FORM_URLENCODED)) { // 如果是普通表单
-                    List<NameValuePair> params = new ArrayList<>();
-
-                    for (Pair<String, Object> p : this.params) {
-                        String name = p.getKey();
-                        Object value = handleValue(p.getValue());
-
-                        if (value instanceof ArrayList) {
-                            ArrayList<?> values = (ArrayList<?>) value;
-                            values.forEach(o -> params.add(new BasicNameValuePair(name, o.toString())));
-                        } else {
-                            params.add(new BasicNameValuePair(name, value.toString()));
-                        }
+                if (singleParam != null) {
+                    String paramStr;
+                    if (singleParam instanceof String) {
+                        paramStr = ((String) singleParam);
+                    } else {
+                        paramStr = JSON.toJSONString(singleParam);
                     }
-                    request.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
-                    log.info("param: {}", collectParam());
-                } else { // 否则按照文件处理
-                    MultipartEntityBuilder body = MultipartEntityBuilder.create()
-                                                                        .setMode(HttpMultipartMode.RFC6532)
-                                                                        .setContentType(contentType);
+                    request.setEntity(new StringEntity(paramStr, StandardCharsets.UTF_8));
+                    log.info("param: {}", paramStr);
+                } else {
+                    if (contentTypeEquals(contentType, ContentType.APPLICATION_JSON)) { // 如果是JSON，把参数装进Map转为json字符串，以StringEntity的形式发送
+                        String param = JSON.toJSONString(collectParam());
+                        request.setEntity(new StringEntity(param, StandardCharsets.UTF_8));
+                        log.info("param: {}", param);
+                    } else if (contentTypeEquals(contentType, ContentType.APPLICATION_FORM_URLENCODED)) { // 如果是普通表单
+                        List<NameValuePair> params = new ArrayList<>();
 
-                    for (Pair<String, Object> p : params) {
-                        String name = p.getKey();
-                        Object value = handleValue(p.getValue());
+                        for (Pair<String, Object> p : this.params) {
+                            String name = p.getKey();
+                            Object value = handleValue(p.getValue());
 
-                        if (value instanceof ArrayList) {
-                            ArrayList<?> values = (ArrayList<?>) value;
-                            for (Object o : values) {
-                                if (o instanceof ContentBody) {
-                                    body.addPart(name, (ContentBody) o);
+                            if (value instanceof ArrayList) {
+                                ArrayList<?> values = (ArrayList<?>) value;
+                                values.forEach(o -> params.add(new BasicNameValuePair(name, o.toString())));
+                            } else {
+                                params.add(new BasicNameValuePair(name, value.toString()));
+                            }
+                        }
+                        request.setEntity(new UrlEncodedFormEntity(params, StandardCharsets.UTF_8));
+                        log.info("param: {}", collectParam());
+                    } else { // 否则按照文件处理
+                        MultipartEntityBuilder body = MultipartEntityBuilder.create()
+                                                                            .setMode(HttpMultipartMode.RFC6532)
+                                                                            .setContentType(contentType);
+
+                        for (Pair<String, Object> p : params) {
+                            String name = p.getKey();
+                            Object value = handleValue(p.getValue());
+
+                            if (value instanceof ArrayList) {
+                                ArrayList<?> values = (ArrayList<?>) value;
+                                for (Object o : values) {
+                                    if (o instanceof ContentBody) {
+                                        body.addPart(name, (ContentBody) o);
+                                    } else {
+                                        body.addTextBody(name, o.toString(), CONTENT_TYPE_STR);
+                                    }
+                                }
+                            } else {
+                                if (value instanceof ContentBody) {
+                                    body.addPart(name, (ContentBody) value);
                                 } else {
-                                    body.addTextBody(name, o.toString(), CONTENT_TYPE_STR);
+                                    body.addTextBody(name, value.toString(), CONTENT_TYPE_STR);
                                 }
                             }
-                        } else {
-                            if (value instanceof ContentBody) {
-                                body.addPart(name, (ContentBody) value);
-                            } else {
-                                body.addTextBody(name, value.toString(), CONTENT_TYPE_STR);
-                            }
                         }
+                        request.setEntity(body.build());
+                        log.info("param: {}", collectParam());
                     }
-                    request.setEntity(body.build());
-                    log.info("param: {}", collectParam());
                 }
             }
 
