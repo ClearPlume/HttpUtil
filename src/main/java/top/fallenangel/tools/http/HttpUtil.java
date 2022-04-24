@@ -127,8 +127,7 @@ public class HttpUtil {
                     String name = p.getKey();
                     Object value = handleValue(p.getValue());
                     // 参数有可能是集合
-                    if (value instanceof ArrayList) {
-                        ArrayList<?> values = (ArrayList<?>) value;
+                    if (value instanceof ArrayList<?> values) {
                         values.forEach(o -> urlBuilder.append(name).append('=').append(o).append('&'));
                     } else {
                         urlBuilder.append(name).append('=').append(value).append('&');
@@ -164,8 +163,7 @@ public class HttpUtil {
                             String name = p.getKey();
                             Object value = handleValue(p.getValue());
 
-                            if (value instanceof ArrayList) {
-                                ArrayList<?> values = (ArrayList<?>) value;
+                            if (value instanceof ArrayList<?> values) {
                                 values.forEach(o -> params.add(new BasicNameValuePair(name, o.toString())));
                             } else {
                                 params.add(new BasicNameValuePair(name, value.toString()));
@@ -182,8 +180,7 @@ public class HttpUtil {
                             String name = p.getKey();
                             Object value = handleValue(p.getValue());
 
-                            if (value instanceof ArrayList) {
-                                ArrayList<?> values = (ArrayList<?>) value;
+                            if (value instanceof ArrayList<?> values) {
                                 for (Object o : values) {
                                     if (o instanceof ContentBody) {
                                         body.addPart(name, (ContentBody) o);
@@ -213,47 +210,40 @@ public class HttpUtil {
          * 把List<Pair>转为Map，有名字相同的参数则转为List
          */
         private Map<String, Object> collectParam() {
-            return this.params.stream()
-                              .reduce(
-                                      new HashMap<>(),
-                                      (prev, curr) -> {
-                                          String name = curr.getKey();
-                                          Object value = handleValue(curr.getValue());
+            Map<String, Object> allParam = new HashMap<>();
+            this.params.forEach(param -> {
+                String name = param.getKey();
+                Object value = handleValue(param.getValue());
 
-                                          if (prev.containsKey(name)) { // 如果已经添加过参数，则转为List再添加
-                                              Object builtInValue = prev.get(name);
+                if (allParam.containsKey(name)) { // 如果已经添加过参数，则将value转为List再添加
+                    // 已经添加完成的value
+                    Object builtInValue = allParam.get(name);
 
-                                              if (builtInValue instanceof ArrayList) {
-                                                  //noinspection unchecked
-                                                  ArrayList<Object> inValue = (ArrayList<Object>) builtInValue;
+                    if (builtInValue instanceof ArrayList) {
+                        //noinspection unchecked
+                        ArrayList<Object> inValue = (ArrayList<Object>) builtInValue;
 
-                                                  if (value instanceof ArrayList) {
-                                                      inValue.addAll((ArrayList<?>) value);
-                                                  } else {
-                                                      inValue.add(value);
-                                                  }
-                                              } else {
-                                                  prev.put(name, new ArrayList<Object>() {{
-                                                      add(builtInValue);
+                        if (value instanceof ArrayList) {
+                            inValue.addAll((ArrayList<?>) value);
+                        } else {
+                            inValue.add(value);
+                        }
+                    } else {
+                        allParam.put(name, new ArrayList<>() {{
+                            add(builtInValue);
 
-                                                      if (value instanceof ArrayList) {
-                                                          addAll((ArrayList<?>) value);
-                                                      } else {
-                                                          add(value);
-                                                      }
-                                                  }});
-                                              }
-                                          } else { // 否则直接添加
-                                              prev.put(name, value);
-                                          }
-
-                                          return prev;
-                                      },
-                                      (prev, curr) -> {
-                                          prev.putAll(curr);
-                                          return prev;
-                                      }
-                              );
+                            if (value instanceof ArrayList) {
+                                addAll((ArrayList<?>) value);
+                            } else {
+                                add(value);
+                            }
+                        }});
+                    }
+                } else { // 否则直接添加
+                    allParam.put(name, value);
+                }
+            });
+            return allParam;
         }
 
         /**
@@ -269,8 +259,7 @@ public class HttpUtil {
                         values.add(Array.get(value, i));
                     }
                     return values;
-                } else if (value instanceof Collection) {
-                    Collection<?> values = (Collection<?>) value;
+                } else if (value instanceof Collection<?> values) {
                     return new ArrayList<>(values);
                 }
             }
