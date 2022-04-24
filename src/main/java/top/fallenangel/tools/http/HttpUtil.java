@@ -88,13 +88,16 @@ public class HttpUtil {
         }
 
         public Response execute() {
-            CloseableHttpResponse response = null;
+            CloseableHttpResponse response;
             try {
                 log.info("发起请求...");
                 response = HttpClientBuilder.create().build().execute(buildRequest());
             } catch (IOException e) {
-                log.info("请求失败！");
                 e.printStackTrace();
+                String errorMsg = e.toString();
+                log.info("请求失败，错误信息如下：");
+                log.info(errorMsg);
+                return Response.build(errorMsg);
             }
             return Response.build(response);
         }
