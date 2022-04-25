@@ -43,7 +43,9 @@ public class Response {
                 return;
             }
 
-            if (HttpUtil.contentTypeEquals(ContentType.get(entity), ContentType.APPLICATION_JSON)) {
+            if (ContentType.get(entity) == null) {
+                bodyString = new String(data, StandardCharsets.UTF_8);
+            } else if (HttpUtil.contentTypeEquals(ContentType.get(entity), ContentType.APPLICATION_JSON)) {
                 body = JSON.parseObject(data, new TypeReference<Map<String, String>>() {}.getType());
                 bodyString = JSON.toJSONString(body);
             } else {
