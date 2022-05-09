@@ -1,6 +1,7 @@
 package top.fallenangel.tools.http;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONValidator;
 import com.alibaba.fastjson.TypeReference;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -43,13 +44,13 @@ public class Response {
                 return;
             }
 
-            if (ContentType.get(entity) == null) {
-                bodyString = new String(data, StandardCharsets.UTF_8);
-            } else if (HttpUtil.contentTypeEquals(ContentType.get(entity), ContentType.APPLICATION_JSON)) {
-                body = JSON.parseObject(data, new TypeReference<Map<String, String>>() {}.getType());
-                bodyString = JSON.toJSONString(body);
-            } else {
-                bodyString = new String(data, StandardCharsets.UTF_8);
+            bodyString = new String(data, StandardCharsets.UTF_8);
+            if (HttpUtil.contentTypeEquals(ContentType.get(entity), ContentType.APPLICATION_JSON)) {
+                JSONValidator validator = JSONValidator.from(bodyString);
+                if (validator.validate()) {
+                    body = JSON.parseObject(data, new TypeReference<Map<String, String>>() {}.getType());
+                }
+                try {validator.close();} catch (IOException ignore) {}
             }
         }
 
