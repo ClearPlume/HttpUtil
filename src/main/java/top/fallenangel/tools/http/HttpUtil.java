@@ -68,7 +68,7 @@ public class HttpUtil {
 
         @SuppressWarnings("UnusedReturnValue")
         public HttpUtilBuilder addParam(String name, Object value) {
-            if (value == null || value.toString().equals("null")) {
+            if (value == null || "null".equals(value.toString())) {
                 log.info("参数<{}>的值<{}>为null或者\"null\"，已将其忽略！", name, value);
             } else {
                 this.params.add(Pair.of(name, value));
@@ -278,6 +278,9 @@ public class HttpUtil {
             return true;
         }
 
+        if (ct1 == null || ct2 == null) {
+            return false;
+        }
         return Objects.equals(ct1.getMimeType(), ct2.getMimeType());
     }
 }
